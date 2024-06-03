@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
@@ -5,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct Node Node;
 
 //
 // tokenize.c
@@ -17,6 +20,7 @@ typedef enum {
     TK_EOF,   // End-of-file markers
 } TokenKind;
 
+
 // Token type
 typedef struct Token Token;
 struct Token {
@@ -26,6 +30,24 @@ struct Token {
     char *loc;      // Token location
     int len;        // Token length
 };
+
+// Local variable
+typedef struct Obj Obj;
+struct Obj {
+    Obj *next;
+    char *name;
+    int offset;
+};
+
+// Function
+typedef struct Function Function;
+struct Function {
+    Node *body;
+    Obj *locals;
+    int stack_size;
+};
+
+
 
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
@@ -61,14 +83,14 @@ struct Node {
     Node *next;    // Next node
     Node *lhs;     // Left-hand side
     Node *rhs;     // Right-hand side
-    char name;     // Used if kind == ND_VAR
+    Obj *var;     // Used if kind == ND_VAR
     int val;       // Used if kind == ND_NUM
 };
 
-Node *parse(Token *tok);
+Function *parse(Token *tok);
 
 //
 // codegen.c
 //
 
-void codegen(Node *node);
+void codegen(Function *prog);

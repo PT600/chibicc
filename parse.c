@@ -1,5 +1,7 @@
 #include "chibicc.h"
 
+Obj *locals;
+
 static Node *expr(Token **rest, Token *tok);
 static Node *expr_stmt(Token **rest, Token *tok);
 static Node *assign(Token **rest, Token *tok);
@@ -10,15 +12,31 @@ static Node *mul(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
 static Node *primary(Token **rest, Token *tok);
 
+static Obj *find_var(Token *tok){
+    for(Obj *var = locals; var; var = var->next){
+        if(strlen(var->name) == tok->len && !strncmp(tok->loc, var->name, tok->len))
+            return var;
+    }
+    return NULL;
+}
+
 static Node *new_node(NodeKind kind) {
     Node *node = calloc(1, sizeof(Node));
     node->kind = kind;
     return node;
 }
-static Node *new_var_node(char name) {
+static Node *new_var_node(Obj *var) {
     Node *node = new_node(ND_VAR);
-    node->name = name;
+    node->var = var;
     return node;
+}
+
+static Obj *new_lvar(char *name){
+    Obj *var = calloc(1, sizeof(Obj));
+    var->name = name;
+    var->next = locals;
+    locals = var;
+    return var;
 }
 
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs) {
@@ -178,19 +196,25 @@ static Node *primary(Token **rest, Token *tok) {
         return node;
     }
     if (tok->kind == TK_IDENT) {
-        Node *node = new_var_node(*tok->loc);
+        Obj *var = find_var(tok);
+        if(!var){
+            var = new_lvar(strndup(tok->loc, tok->len));
+        }
         *rest = tok->next;
-        return node;
+        return new_var_node(var);
     }
 
     error_tok(tok, "expected an expression");
 }
 
 // program = stmt*
-Node *parse(Token *tok) {
+Function *parse(Token *tok) {
     Node head = {};
     Node *cur = &head;
     while (tok->kind != TK_EOF)
         cur = cur->next = stmt(&tok, tok);
-    return head.next;
+    Function *prog = calloc(1, sizeof(Function));
+    prog->body = head.next;
+    prog->locals = locals;
+    return prog;
 }
