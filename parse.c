@@ -13,9 +13,10 @@ static Node *mul(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
 static Node *primary(Token **rest, Token *tok);
 
-static Obj *find_var(Token *tok){
-    for(Obj *var = locals; var; var = var->next){
-        if(strlen(var->name) == tok->len && !strncmp(tok->loc, var->name, tok->len))
+static Obj *find_var(Token *tok) {
+    for (Obj *var = locals; var; var = var->next) {
+        if (strlen(var->name) == tok->len &&
+            !strncmp(tok->loc, var->name, tok->len))
             return var;
     }
     return NULL;
@@ -32,7 +33,7 @@ static Node *new_var_node(Obj *var) {
     return node;
 }
 
-static Obj *new_lvar(char *name){
+static Obj *new_lvar(char *name) {
     Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
     var->next = locals;
@@ -60,22 +61,22 @@ static Node *new_num(int val) {
 }
 
 // stmt = "return" expr ";" | "{" compound-stmt | expr-stmt
-static Node *stmt(Token **rest, Token *tok) { 
-    if(equal(tok, "return")){
+static Node *stmt(Token **rest, Token *tok) {
+    if (equal(tok, "return")) {
         Node *node = new_unary(ND_RETURN, expr(&tok, tok->next));
         *rest = skip(tok, ";");
         return node;
     }
-    if(equal(tok, "{")){
+    if (equal(tok, "{")) {
         return compound_stmt(rest, tok->next);
     }
-    return expr_stmt(rest, tok); 
+    return expr_stmt(rest, tok);
 }
 
-static Node *compound_stmt(Token **rest, Token *tok){
+static Node *compound_stmt(Token **rest, Token *tok) {
     Node head = {};
     Node *cur = &head;
-    while(!equal(tok, "}")){
+    while (!equal(tok, "}")) {
         cur = cur->next = stmt(&tok, tok);
     }
     Node *node = new_node(ND_BLOCK);
@@ -84,8 +85,12 @@ static Node *compound_stmt(Token **rest, Token *tok){
     return node;
 }
 
-// expr-stmt = expr ";"
+// expr-stmt = expr? ";"
 static Node *expr_stmt(Token **rest, Token *tok) {
+    if (equal(tok, ";")) {
+        *rest = tok->next;
+        return new_node(ND_BLOCK);
+    }
     Node *node = new_unary(ND_EXPR_STMT, expr(&tok, tok));
     *rest = skip(tok, ";");
     return node;
@@ -220,7 +225,7 @@ static Node *primary(Token **rest, Token *tok) {
     }
     if (tok->kind == TK_IDENT) {
         Obj *var = find_var(tok);
-        if(!var){
+        if (!var) {
             var = new_lvar(strndup(tok->loc, tok->len));
         }
         *rest = tok->next;
