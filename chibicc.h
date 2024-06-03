@@ -83,6 +83,7 @@ typedef struct Node Node;
 struct Node {
     NodeKind kind; // Node kind
     Node *next;    // Next node
+    Token *tok;    // Representive token
     Node *lhs;     // Left-hand side
     Node *rhs;     // Right-hand side
     // "if" or "for" statement
