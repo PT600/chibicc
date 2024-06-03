@@ -2,6 +2,11 @@
 
 static int depth;
 
+static int count(void) {
+    static int i = 1;
+    return i++;
+}
+
 static void push(void) {
     printf("  push %%rax\n");
     depth++;
@@ -12,8 +17,8 @@ static void pop(char *arg) {
     depth--;
 }
 
-static int align_to(int n, int align){
-    return (n+align-1)/align * align;
+static int align_to(int n, int align) {
+    return (n + align - 1) / align * align;
 }
 
 static void gen_addr(Node *node) {
@@ -88,33 +93,45 @@ static void gen_expr(Node *node) {
 }
 
 static void gen_stmt(Node *node) {
-    switch(node->kind){
-        case ND_BLOCK:
-            for(Node *n = node->body; n; n = n->next){
-                gen_stmt(n);
-            }
-            return;
-        case ND_RETURN:
-            gen_expr(node->lhs);
-            printf("  jmp .L.return\n");
-            return;
-        case ND_EXPR_STMT:
-            gen_expr(node->lhs);
-            return;
+    switch (node->kind) {
+    case ND_IF:
+        int c = count();
+        gen_expr(node->cond);
+        printf("  cmp $0, %%rax\n");
+        printf("  je .L.else.%d\n", c);
+        gen_stmt(node->then);
+        printf("  jmp .L.end.%d\n", c);
+        printf(".L.else.%d:\n", c);
+        if (node->els) {
+            gen_stmt(node->els);
+        }
+        printf(".L.end.%d:\n", c);
+        return;
+    case ND_BLOCK:
+        for (Node *n = node->body; n; n = n->next) {
+            gen_stmt(n);
+        }
+        return;
+    case ND_RETURN:
+        gen_expr(node->lhs);
+        printf("  jmp .L.return\n");
+        return;
+    case ND_EXPR_STMT:
+        gen_expr(node->lhs);
+        return;
     }
 
     error("invalid statement");
 }
 
-static void assign_lvar_offsets(Function *prog){
+static void assign_lvar_offsets(Function *prog) {
     int offset = 0;
-    for(Obj *var = prog->locals; var; var = var->next){
+    for (Obj *var = prog->locals; var; var = var->next) {
         offset += 8;
         var->offset = -offset;
     }
     prog->stack_size = align_to(offset, 16);
 }
-
 
 void codegen(Function *prog) {
     assign_lvar_offsets(prog);

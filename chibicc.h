@@ -14,13 +14,12 @@ typedef struct Node Node;
 //
 
 typedef enum {
-    TK_IDENT, // Identifier
-    TK_PUNCT, // Keywords or punctuators
+    TK_IDENT,   // Identifier
+    TK_PUNCT,   // Keywords or punctuators
     TK_KEYWORD, // Keywords
-    TK_NUM,   // Numeric literals
-    TK_EOF,   // End-of-file markers
+    TK_NUM,     // Numeric literals
+    TK_EOF,     // End-of-file markers
 } TokenKind;
-
 
 // Token type
 typedef struct Token Token;
@@ -48,8 +47,6 @@ struct Function {
     int stack_size;
 };
 
-
-
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 void error_tok(Token *tok, char *fmt, ...);
@@ -72,8 +69,9 @@ typedef enum {
     ND_LT,  // <
     ND_LE,  // <=
     ND_ASSIGN,
-    ND_RETURN,  // "return"
-    ND_BLOCK, // {...}
+    ND_RETURN,    // "return"
+    ND_IF,        // "if"
+    ND_BLOCK,     // {...}
     ND_EXPR_STMT, // Expression statement
     ND_VAR,
     ND_NUM, // Integer
@@ -86,9 +84,14 @@ struct Node {
     Node *next;    // Next node
     Node *lhs;     // Left-hand side
     Node *rhs;     // Right-hand side
-    Node *body;    // Block
-    Obj *var;     // Used if kind == ND_VAR
-    int val;       // Used if kind == ND_NUM
+    // "if" statement
+    Node *cond;
+    Node *then;
+    Node *els;
+    // Block
+    Node *body; // Block
+    Obj *var;   // Used if kind == ND_VAR
+    int val;    // Used if kind == ND_NUM
 };
 
 Function *parse(Token *tok);
