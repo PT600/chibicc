@@ -69,6 +69,8 @@ typedef enum {
     ND_LT,  // <
     ND_LE,  // <=
     ND_ASSIGN,
+    ND_ADDR,      // unary &
+    ND_DEREF,     // unary *
     ND_RETURN,    // "return"
     ND_IF,        // "if"
     ND_FOR,       // "for" or "while"
@@ -79,10 +81,12 @@ typedef enum {
 } NodeKind;
 
 // AST node type
+typedef struct Type Type;
 typedef struct Node Node;
 struct Node {
     NodeKind kind; // Node kind
     Node *next;    // Next node
+    Type *ty;      // Type, e.g. int or pointer to int
     Token *tok;    // Representive token
     Node *lhs;     // Left-hand side
     Node *rhs;     // Right-hand side
@@ -100,6 +104,23 @@ struct Node {
 
 Function *parse(Token *tok);
 
+//
+// type.c
+//
+typedef enum {
+    TY_INT,
+    TY_PTR,
+} TypeKind;
+
+struct Type {
+    TypeKind kind;
+    Type *base;
+};
+
+extern Type *ty_int;
+
+bool is_integer(Type *ty);
+void add_type(Node *node);
 //
 // codegen.c
 //

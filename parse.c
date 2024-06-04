@@ -1,3 +1,21 @@
+// This file contains a recursive descent parser for C.
+//
+// Most functions in this file are named after the symbols they are
+// supposed to read from an input token list. For example, stmt() is
+// responsible for reading a statement from a token list. The function
+// then construct an AST node representing a statement.
+//
+// Each function conceptually returns two values, an AST node and
+// remaining part of the input tokens. Since C doesn't support
+// multiple return values, the remaining tokens are returned to the
+// caller via a pointer argument.
+//
+// Input tokens are represented by a linked list. Unlike many recursive
+// descent parsers, we don't have the notion of the "input token stream".
+// Most parsing functions don't change the global state of the parser.
+// So it is very easy to lookahead arbitrary number of tokens in this
+// parser.
+
 #include "chibicc.h"
 
 Obj *locals;
@@ -121,6 +139,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node *cur = &head;
     while (!equal(tok, "}")) {
         cur = cur->next = stmt(&tok, tok);
+        add_type(cur);
     }
     node->body = head.next;
     *rest = tok->next;
@@ -204,6 +223,57 @@ static Node *relational(Token **rest, Token *tok) {
     }
 }
 
+static Node *new_add(Node *lhs, Node *rhs, Token *tok) {
+    add_type(lhs);
+    add_type(rhs);
+    // num + num
+    if (is_integer(lhs->ty) && is_integer(rhs->ty)) {
+        return new_binary(ND_ADD, lhs, rhs, tok);
+    }
+    if (lhs->ty->base && rhs->ty->base)
+        error_tok(tok, "invalid operands");
+
+    // Canonicalize `num + ptr` to `ptr + num`.
+    if (!lhs->ty->base && rhs->ty->base) {
+        Node *tmp = lhs;
+        lhs = rhs;
+        rhs = lhs;
+    }
+    // ptr + num
+    rhs = new_binary(ND_MUL, rhs, new_num(8, tok), tok);
+    rhs->ty = ty_int;
+    Node *node = new_binary(ND_ADD, lhs, rhs, tok);
+    node->ty = lhs->ty;
+    return node;
+}
+
+// Like `+`, `-` is overloaded for the pointer type
+static Node *new_sub(Node *lhs, Node *rhs, Token *tok) {
+    add_type(lhs);
+    add_type(rhs);
+    // num - num
+    if (is_integer(lhs->ty) && is_integer(rhs->ty))
+        return new_binary(ND_SUB, lhs, rhs, tok);
+    // ptr - num
+    if (lhs->ty->base && is_integer(rhs->ty)) {
+        rhs = new_binary(ND_MUL, rhs, new_num(8, tok), tok);
+        // add_type(rhs);
+        rhs->ty = ty_int;
+        Node *node = new_binary(ND_SUB, lhs, rhs, tok);
+        node->ty = lhs->ty;
+        return node;
+    }
+    // ptr - ptr
+    if (lhs->ty->base && rhs->ty->base) {
+        Node *node = new_binary(ND_SUB, lhs, rhs, tok);
+        node->ty = ty_int;
+        node = new_binary(ND_DIV, node, new_num(8, tok), tok);
+        node->ty = ty_int;
+        return node;
+    }
+    error_tok(tok, "invalid operands");
+}
+
 // add = mul ("+" mul | "-" mul)*
 static Node *add(Token **rest, Token *tok) {
     Node *node = mul(&tok, tok);
@@ -211,12 +281,12 @@ static Node *add(Token **rest, Token *tok) {
 
     for (;;) {
         if (equal(tok, "+")) {
-            node = new_binary(ND_ADD, node, mul(&tok, tok->next), start);
+            node = new_add(node, mul(&tok, tok->next), start);
             continue;
         }
 
         if (equal(tok, "-")) {
-            node = new_binary(ND_SUB, node, mul(&tok, tok->next), start);
+            node = new_sub(node, mul(&tok, tok->next), start);
             continue;
         }
 
@@ -246,13 +316,19 @@ static Node *mul(Token **rest, Token *tok) {
     }
 }
 
-// unary = ("+" | "-") unary | primary
+// unary = ("+" | "-" | "*" | "&") unary | primary
 static Node *unary(Token **rest, Token *tok) {
     if (equal(tok, "+"))
         return unary(rest, tok->next);
 
     if (equal(tok, "-"))
         return new_unary(ND_NEG, unary(rest, tok->next), tok);
+
+    if (equal(tok, "*"))
+        return new_unary(ND_DEREF, unary(rest, tok->next), tok);
+
+    if (equal(tok, "&"))
+        return new_unary(ND_ADDR, unary(rest, tok->next), tok);
 
     return primary(rest, tok);
 }
