@@ -8,6 +8,7 @@
 #include <string.h>
 
 typedef struct Node Node;
+typedef struct Type Type;
 
 //
 // tokenize.c
@@ -36,6 +37,7 @@ typedef struct Obj Obj;
 struct Obj {
     Obj *next;
     char *name;
+    Type *ty;
     int offset;
 };
 
@@ -52,6 +54,7 @@ void error_at(char *loc, char *fmt, ...);
 void error_tok(Token *tok, char *fmt, ...);
 bool equal(Token *tok, char *op);
 Token *skip(Token *tok, char *op);
+bool consume(Token **rest, Token *tok, char *str);
 Token *tokenize(char *input);
 
 //
@@ -81,8 +84,6 @@ typedef enum {
 } NodeKind;
 
 // AST node type
-typedef struct Type Type;
-typedef struct Node Node;
 struct Node {
     NodeKind kind; // Node kind
     Node *next;    // Next node
@@ -114,12 +115,14 @@ typedef enum {
 
 struct Type {
     TypeKind kind;
-    Type *base;
+    Type *base;  // for Pointer
+    Token *name; // Declaration
 };
 
 extern Type *ty_int;
 
 bool is_integer(Type *ty);
+Type *pointer_to(Type *base);
 void add_type(Node *node);
 //
 // codegen.c
