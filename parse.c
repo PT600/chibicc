@@ -105,15 +105,19 @@ static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
     return ty;
 }
 
-// declarator = "*"* ident
+// declarator = "*"* ident type-suffix
 static Type *declarator(Token **rest, Token *tok, Type *ty) {
     while (consume(&tok, tok, "*")) {
         ty = pointer_to(ty);
     }
-    if (tok->kind != TK_IDENT)
+    if (tok->kind != TK_IDENT) {
+        fprintf(stderr, "tok.kind: %d, %s\n", tok->kind,
+                strndup(tok->loc, tok->len));
         error_tok(tok, "expected a variable name");
+    }
+    ty = type_suffix(rest, tok->next, ty);
     ty->name = tok;
-    *rest = tok->next;
+    // *rest = tok->next;
     return ty;
 }
 
@@ -450,11 +454,24 @@ static Node *primary(Token **rest, Token *tok) {
     error_tok(tok, "expected an expression");
 }
 
-// program = stmt*
-Function *parse(Token *tok) {
+static Function *function(Token **rest, Token *tok) {
+    Type *ty = declspec(&tok, tok);
+    ty = declarator(&tok, tok, ty);
+    locals = NULL;
+    Function *fn = calloc(1, sizeof(Function));
+    fn->name = get_ident(ty->name);
     tok = skip(tok, "{");
-    Function *prog = calloc(1, sizeof(Function));
-    prog->body = compound_stmt(&tok, tok);
-    prog->locals = locals;
-    return prog;
+    fn->body = compound_stmt(rest, tok);
+    fn->locals = locals;
+    return fn;
+}
+
+// program = function-definition*
+Function *parse(Token *tok) {
+    Function head = {};
+    Function *cur = &head;
+    while (tok->kind != TK_EOF) {
+        cur = cur->next = function(&tok, tok);
+    }
+    return head.next;
 }

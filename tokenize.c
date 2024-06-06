@@ -47,8 +47,8 @@ Token *skip(Token *tok, char *op) {
     return tok->next;
 }
 
-bool consume(Token **rest, Token *tok, char *str){
-    if(equal(tok, str)){
+bool consume(Token **rest, Token *tok, char *str) {
+    if (equal(tok, str)) {
         *rest = tok->next;
         return true;
     }
@@ -95,7 +95,7 @@ static bool is_keyword(Token *tok) {
 
 static void convert_keywords(Token *tok) {
     for (Token *t = tok; t->kind != TK_EOF; t = t->next) {
-        if (is_keyword(tok)) {
+        if (is_keyword(t)) {
             t->kind = TK_KEYWORD;
         }
     }
