@@ -62,8 +62,8 @@ static Obj *new_lvar(char *name, Type *ty) {
     return var;
 }
 
-static char *get_ident(Token *tok){
-    if(tok->kind != TK_IDENT)
+static char *get_ident(Token *tok) {
+    if (tok->kind != TK_IDENT)
         error_tok(tok, "expected an identifier");
     return strndup(tok->loc, tok->len);
 }
@@ -88,35 +88,36 @@ static Node *new_num(int val, Token *tok) {
 }
 
 // declspec = "int"
-static Type *declspec(Token **rest, Token *tok){
+static Type *declspec(Token **rest, Token *tok) {
     *rest = skip(tok, "int");
     return ty_int;
 }
 
 // declarator = "*"* ident
-static Type *declarator(Token **rest, Token *tok, Type *ty){
-    while(consume(&tok, tok, "*")){
+static Type *declarator(Token **rest, Token *tok, Type *ty) {
+    while (consume(&tok, tok, "*")) {
         ty = pointer_to(ty);
     }
-    if(tok->kind != TK_IDENT)
+    if (tok->kind != TK_IDENT)
         error_tok(tok, "expected a variable name");
     ty->name = tok;
     *rest = tok->next;
     return ty;
 }
 
-// declaration = declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
-static Node *declaration(Token **rest, Token *tok){
+// declaration = declspec (declarator ("=" expr)? ("," declarator ("="
+// expr)?)*)? ";"
+static Node *declaration(Token **rest, Token *tok) {
     Type *basety = declspec(&tok, tok);
     Node head = {};
     Node *cur = &head;
     int i = 0;
     while (!equal(tok, ";")) {
-        if(i++ > 0)
+        if (i++ > 0)
             tok = skip(tok, ",");
         Type *ty = declarator(&tok, tok, basety);
         Obj *var = new_lvar(get_ident(ty->name), ty);
-        if(!equal(tok, "="))
+        if (!equal(tok, "="))
             continue;
         Node *lhs = new_var_node(var, ty->name);
         Node *rhs = assign(&tok, tok->next);
@@ -189,7 +190,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node head = {};
     Node *cur = &head;
     while (!equal(tok, "}")) {
-        if(equal(tok, "int"))
+        if (equal(tok, "int"))
             cur = cur->next = declaration(&tok, tok);
         else
             cur = cur->next = stmt(&tok, tok);
@@ -387,8 +388,26 @@ static Node *unary(Token **rest, Token *tok) {
     return primary(rest, tok);
 }
 
-// primary = "(" expr ")" | ident args? | num
-// args = "(" ")"
+// funcall = ident "(" (assign ("," assign)*)? ")"
+static Node *funcall(Token **rest, Token *tok) {
+    Token *start = tok;
+    tok = tok->next->next;
+
+    Node head = {};
+    Node *cur = &head;
+    while (!equal(tok, ")")) {
+        if (cur != &head)
+            tok = skip(tok, ",");
+        cur = cur->next = assign(&tok, tok);
+    }
+    *rest = skip(tok, ")");
+    Node *node = new_node(ND_FUNCALL, start);
+    node->funcname = strndup(start->loc, start->len);
+    node->args = head.next;
+    return node;
+}
+
+// primary = "(" expr ")" | ident func-args? | num
 static Node *primary(Token **rest, Token *tok) {
     if (equal(tok, "(")) {
         Node *node = expr(&tok, tok->next);
@@ -404,10 +423,7 @@ static Node *primary(Token **rest, Token *tok) {
     if (tok->kind == TK_IDENT) {
         // Function call
         if (equal(tok->next, "(")) {
-            Node *node = new_node(ND_FUNCALL, tok);
-            node->funcname = strndup(tok->loc, tok->len);
-            *rest = skip(tok->next->next, ")");
-            return node;
+            return funcall(rest, tok);
         }
         // Variable
         Obj *var = find_var(tok);
