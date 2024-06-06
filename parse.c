@@ -20,6 +20,8 @@
 
 Obj *locals;
 
+static Type *declspec(Token **rest, Token *tok);
+static Type *declarator(Token **rest, Token *tok, Type *ty);
 static Node *declaration(Token **rest, Token *tok);
 static Node *compound_stmt(Token **rest, Token *tok);
 static Node *expr_stmt(Token **rest, Token *tok);
@@ -91,6 +93,16 @@ static Node *new_num(int val, Token *tok) {
 static Type *declspec(Token **rest, Token *tok) {
     *rest = skip(tok, "int");
     return ty_int;
+}
+
+// type-suffix = ( "(" func-params)?
+static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
+    if (equal(tok, "(")) {
+        *rest = skip(tok->next, ")");
+        return func_type(ty);
+    }
+    *rest = tok;
+    return ty;
 }
 
 // declarator = "*"* ident
