@@ -95,11 +95,26 @@ static Type *declspec(Token **rest, Token *tok) {
     return ty_int;
 }
 
-// type-suffix = ( "(" func-params)?
+// type-suffix = ( "(" func-params? ")")?
+// func-params = param ("," param)*
+// param       = declspec declarator
 static Type *type_suffix(Token **rest, Token *tok, Type *ty) {
     if (equal(tok, "(")) {
-        *rest = skip(tok->next, ")");
-        return func_type(ty);
+        tok = tok->next;
+        Type head = {};
+        Type *cur = &head;
+        while (!equal(tok, ")")) {
+            if (cur != &head) {
+                tok = skip(tok, ",");
+            }
+            Type *basety = declspec(&tok, tok);
+            Type *ty = declarator(&tok, tok, basety);
+            cur = cur->next = copy_type(ty);
+        }
+        ty = func_type(ty);
+        ty->params = head.next;
+        *rest = skip(tok, ")");
+        return ty;
     }
     *rest = tok;
     return ty;
@@ -111,13 +126,10 @@ static Type *declarator(Token **rest, Token *tok, Type *ty) {
         ty = pointer_to(ty);
     }
     if (tok->kind != TK_IDENT) {
-        fprintf(stderr, "tok.kind: %d, %s\n", tok->kind,
-                strndup(tok->loc, tok->len));
         error_tok(tok, "expected a variable name");
     }
     ty = type_suffix(rest, tok->next, ty);
     ty->name = tok;
-    // *rest = tok->next;
     return ty;
 }
 
@@ -129,8 +141,9 @@ static Node *declaration(Token **rest, Token *tok) {
     Node *cur = &head;
     int i = 0;
     while (!equal(tok, ";")) {
-        if (i++ > 0)
+        if (i++ > 0) {
             tok = skip(tok, ",");
+        }
         Type *ty = declarator(&tok, tok, basety);
         Obj *var = new_lvar(get_ident(ty->name), ty);
         if (!equal(tok, "="))
@@ -454,12 +467,21 @@ static Node *primary(Token **rest, Token *tok) {
     error_tok(tok, "expected an expression");
 }
 
+static void create_param_lvars(Type *param) {
+    if (param) {
+        create_param_lvars(param->next);
+        new_lvar(get_ident(param->name), param);
+    }
+}
+
 static Function *function(Token **rest, Token *tok) {
     Type *ty = declspec(&tok, tok);
     ty = declarator(&tok, tok, ty);
     locals = NULL;
     Function *fn = calloc(1, sizeof(Function));
     fn->name = get_ident(ty->name);
+    create_param_lvars(ty->params);
+    fn->params = locals;
     tok = skip(tok, "{");
     fn->body = compound_stmt(rest, tok);
     fn->locals = locals;
