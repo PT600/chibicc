@@ -113,10 +113,18 @@ static int get_number(Token *tok){
     return tok->val;
 }
 
-// declspec = "int"
+// declspec = "char" | "int"
 static Type *declspec(Token **rest, Token *tok) {
+    if(equal(tok, "char")){
+        *rest = tok->next;
+        return ty_char;
+    }
     *rest = skip(tok, "int");
     return ty_int;
+}
+
+static bool is_typename(Token *tok){
+    return equal(tok, "char") || equal(tok, "int");
 }
 
 // func-params = param ("," param)* ")"
@@ -251,7 +259,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node head = {};
     Node *cur = &head;
     while (!equal(tok, "}")) {
-        if (equal(tok, "int"))
+        if (is_typename(tok))
             cur = cur->next = declaration(&tok, tok);
         else
             cur = cur->next = stmt(&tok, tok);
