@@ -38,14 +38,13 @@ struct Obj {
     Obj *next;
     char *name;
     Type *ty;
+    bool is_local;  // local or global/function
+    // Local variable
     int offset;
-};
+    // global variable or function
+    bool is_function;
 
-// Function
-typedef struct Function Function;
-struct Function {
-    Function *next;
-    char *name;
+    // Function
     Obj *params;
     Node *body;
     Obj *locals;
@@ -110,7 +109,7 @@ struct Node {
     int val;  // Used if kind == ND_NUM
 };
 
-Function *parse(Token *tok);
+Obj *parse(Token *tok);
 
 //
 // type.c
@@ -154,4 +153,4 @@ void add_type(Node *node);
 // codegen.c
 //
 
-void codegen(Function *prog);
+void codegen(Obj *prog);
