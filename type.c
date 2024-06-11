@@ -1,6 +1,6 @@
 #include "chibicc.h"
 
-Type *ty_int = &(Type){TY_INT};
+Type *ty_int = &(Type){TY_INT, 8};
 
 bool is_integer(Type *ty) { return ty->kind == TY_INT; }
 
@@ -12,6 +12,7 @@ Type *copy_type(Type *ty) {
 Type *pointer_to(Type *base) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_PTR;
+    ty->size = 8;
     ty->base = base;
     return ty;
 }
@@ -20,6 +21,15 @@ Type *func_type(Type *return_type) {
     Type *ty = calloc(1, sizeof(Type));
     ty->kind = TY_FUNC;
     ty->return_ty = return_type;
+    return ty;
+}
+
+Type *array_of(Type *base, int len){
+    Type *ty = calloc(1, sizeof(Type));
+    ty->kind = TY_ARRAY;
+    ty->base = base;
+    ty->size = base->size * len;
+    ty->array_len = len;
     return ty;
 }
 
@@ -41,7 +51,11 @@ void add_type(Node *node) {
     case ND_MUL:
     case ND_DIV:
     case ND_NEG:
+        node->ty = node->lhs->ty;
+        return;
     case ND_ASSIGN:
+        if(node->lhs->ty->kind == TY_ARRAY)
+            error_tok(node->lhs->tok, "not an lvalue");
         node->ty = node->lhs->ty;
         return;
     case ND_EQ:
@@ -56,10 +70,13 @@ void add_type(Node *node) {
         node->ty = node->var->ty;
         return;
     case ND_ADDR:
-        node->ty = pointer_to(node->lhs->ty);
+        if(node->lhs->ty->kind == TY_ARRAY)
+            node->ty = pointer_to(node->lhs->ty->base);
+        else
+            node->ty = pointer_to(node->lhs->ty);
         return;
     case ND_DEREF:
-        if (node->lhs->ty->kind != TY_PTR)
+        if (!node->lhs->ty->base)
             error_tok(node->tok, "invalid pointer dereference");
         node->ty = node->lhs->ty->base;
         return;
