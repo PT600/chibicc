@@ -336,7 +336,7 @@ static Node *new_add(Node *lhs, Node *rhs, Token *tok) {
     if (!lhs->ty->base && rhs->ty->base) {
         Node *tmp = lhs;
         lhs = rhs;
-        rhs = lhs;
+        rhs = tmp;
     }
     // ptr + num
     rhs = new_binary(ND_MUL, rhs, new_num(lhs->ty->base->size, tok), tok);
