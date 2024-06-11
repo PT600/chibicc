@@ -26,7 +26,10 @@ static int align_to(int n, int align) {
 static void gen_addr(Node *node) {
     switch (node->kind) {
     case ND_VAR:
-        printf("  lea %d(%%rbp), %%rax\n", node->var->offset);
+        if(node->var->is_local)
+            printf("  lea %d(%%rbp), %%rax\n", node->var->offset);
+        else 
+            printf("  lea %s(%%rip), %%rax\n", node->var->name);
         return;
     case ND_DEREF:
         gen_expr(node->lhs);
@@ -185,7 +188,6 @@ static void gen_stmt(Node *node) {
 
     error_tok(node->tok, "invalid statement");
 }
-
 static void assign_lvar_offsets(Obj *prog) {
     for (Obj *fn = prog; fn; fn = fn->next) {
         if(!fn->is_function) continue;
@@ -198,8 +200,17 @@ static void assign_lvar_offsets(Obj *prog) {
     }
 }
 
-void codegen(Obj *prog) {
-    assign_lvar_offsets(prog);
+static void emit_data(Obj *prog){
+    for (Obj *var = prog; var; var = var->next){
+        if(var->is_function) continue;
+        printf("  .data\n");
+        printf("  .globl %s\n", var->name);
+        printf("%s:\n", var->name);
+        printf("  .zero %d\n", var->ty->size);
+    }
+}
+
+static void emit_text(Obj *prog){
     for (Obj *fn = prog; fn; fn = fn->next) {
         if(!fn->is_function) continue;
         printf("  .globl %s\n", fn->name);
@@ -227,4 +238,10 @@ void codegen(Obj *prog) {
         printf("  pop %%rbp\n");
         printf("  ret\n");
     }
+}
+
+void codegen(Obj *prog) {
+    assign_lvar_offsets(prog);
+    emit_data(prog);
+    emit_text(prog);
 }
