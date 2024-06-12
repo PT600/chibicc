@@ -82,6 +82,23 @@ static Obj *new_gvar(char *name, Type *ty) {
     return var;
 }
 
+static char *new_unique_name(void){
+    static int id = 0;
+    char *buf = calloc(1, 20);
+    sprintf(buf, ".L..%d", id++);
+    return buf;
+}
+
+static Obj *new_anon_gvar(Type *ty){
+    return new_gvar(new_unique_name(), ty);
+}
+
+static Obj *new_string_literal(char *p, Type *ty){
+    Obj *var = new_anon_gvar(ty);
+    var->init_data = p;
+    return var;
+}
+
 static char *get_ident(Token *tok) {
     if (tok->kind != TK_IDENT)
         error_tok(tok, "expected an identifier");
@@ -490,12 +507,18 @@ static Node *funcall(Token **rest, Token *tok) {
     return node;
 }
 
-// primary = "(" expr ")" | sizeof unary | ident func-args? | num
+// primary = "(" expr ")" | sizeof unary | ident func-args? | str | num
 static Node *primary(Token **rest, Token *tok) {
     if (equal(tok, "(")) {
         Node *node = expr(&tok, tok->next);
         *rest = skip(tok, ")");
         return node;
+    }
+
+    if(tok->kind == TK_STR){
+        Obj *var = new_string_literal(tok->str, tok->ty);
+        *rest = tok->next;
+        return new_var_node(var, tok);
     }
 
     if (tok->kind == TK_NUM) {
