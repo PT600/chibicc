@@ -8,58 +8,39 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct Node Node;
 typedef struct Type Type;
+typedef struct Node Node;
 
 //
 // strings.c
 //
+
 char *format(char *fmt, ...);
 
 //
 // tokenize.c
 //
 
+// Token
 typedef enum {
-    TK_IDENT,   // Identifier
-    TK_PUNCT,   // Keywords or punctuators
-    TK_KEYWORD, // Keywords
-    TK_STR,     // String literals
-    TK_NUM,     // Numeric literals
-    TK_EOF,     // End-of-file markers
+  TK_IDENT,   // Identifiers
+  TK_PUNCT,   // Punctuators
+  TK_KEYWORD, // Keywords
+  TK_STR,     // String literals
+  TK_NUM,     // Numeric literals
+  TK_EOF,     // End-of-file markers
 } TokenKind;
 
 // Token type
 typedef struct Token Token;
 struct Token {
-    TokenKind kind; // Token kind
-    Token *next;    // Next token
-    int val;        // If kind is TK_NUM, its value
-    char *loc;      // Token location
-    int len;        // Token length
-    Type *ty;       // Used if TK_STR
-    char *str;      // String literal contents including terminating '\0'
-};
-
-// Local variable
-typedef struct Obj Obj;
-struct Obj {
-    Obj *next;
-    char *name;
-    Type *ty;
-    bool is_local;  // local or global/function
-    // Local variable
-    int offset;
-    // global variable or function
-    bool is_function;
-    // global variable
-    char *init_data;
-
-    // Function
-    Obj *params;
-    Node *body;
-    Obj *locals;
-    int stack_size;
+  TokenKind kind; // Token kind
+  Token *next;    // Next token
+  int val;        // If kind is TK_NUM, its value
+  char *loc;      // Token location
+  int len;        // Token length
+  Type *ty;       // Used if TK_STR
+  char *str;      // String literal contents including terminating '\0'
 };
 
 void error(char *fmt, ...);
@@ -74,51 +55,81 @@ Token *tokenize_file(char *filename);
 // parse.c
 //
 
+// Variable or function
+typedef struct Obj Obj;
+struct Obj {
+  Obj *next;
+  char *name;    // Variable name
+  Type *ty;      // Type
+  bool is_local; // local or global/function
+
+  // Local variable
+  int offset;
+
+  // Global variable or function
+  bool is_function;
+
+  // Global variable
+  char *init_data;
+
+  // Function
+  Obj *params;
+  Node *body;
+  Obj *locals;
+  int stack_size;
+};
+
+// AST node
 typedef enum {
-    ND_ADD, // +
-    ND_SUB, // -
-    ND_MUL, // *
-    ND_DIV, // /
-    ND_NEG, // unary -
-    ND_EQ,  // ==
-    ND_NE,  // !=
-    ND_LT,  // <
-    ND_LE,  // <=
-    ND_ASSIGN,
-    ND_ADDR,      // unary &
-    ND_DEREF,     // unary *
-    ND_RETURN,    // "return"
-    ND_IF,        // "if"
-    ND_FOR,       // "for" or "while"
-    ND_BLOCK,     // {...}
-    ND_FUNCALL,   // Function call
-    ND_EXPR_STMT, // Expression statement
-    ND_STMT_EXPR, // Statement expression
-    ND_VAR,
-    ND_NUM, // Integer
+  ND_ADD,       // +
+  ND_SUB,       // -
+  ND_MUL,       // *
+  ND_DIV,       // /
+  ND_NEG,       // unary -
+  ND_EQ,        // ==
+  ND_NE,        // !=
+  ND_LT,        // <
+  ND_LE,        // <=
+  ND_ASSIGN,    // =
+  ND_ADDR,      // unary &
+  ND_DEREF,     // unary *
+  ND_RETURN,    // "return"
+  ND_IF,        // "if"
+  ND_FOR,       // "for" or "while"
+  ND_BLOCK,     // { ... }
+  ND_FUNCALL,   // Function call
+  ND_EXPR_STMT, // Expression statement
+  ND_STMT_EXPR, // Statement expression
+  ND_VAR,       // Variable
+  ND_NUM,       // Integer
 } NodeKind;
 
 // AST node type
 struct Node {
-    NodeKind kind; // Node kind
-    Node *next;    // Next node
-    Type *ty;      // Type, e.g. int or pointer to int
-    Token *tok;    // Representive token
-    Node *lhs;     // Left-hand side
-    Node *rhs;     // Right-hand side
-    // "if" or "for" statement
-    Node *cond;
-    Node *then;
-    Node *els;
-    Node *init;
-    Node *inc;
-    // Block or statment expression
-    Node *body; // Block
-    // Funciton call
-    char *funcname;
-    Node *args;
-    Obj *var; // Used if kind == ND_VAR
-    int val;  // Used if kind == ND_NUM
+  NodeKind kind; // Node kind
+  Node *next;    // Next node
+  Type *ty;      // Type, e.g. int or pointer to int
+  Token *tok;    // Representative token
+
+  Node *lhs;     // Left-hand side
+  Node *rhs;     // Right-hand side
+
+  // "if" or "for" statement
+  Node *cond;
+  Node *then;
+  Node *els;
+  Node *init;
+  Node *inc;
+
+  // Block or statement expression
+  Node *body;
+
+  // Function call
+  char *funcname;
+  Node *args;
+
+  Obj *var;      // Used if kind == ND_VAR
+  int val;       // Used if kind == ND_NUM
 };
 
 Obj *parse(Token *tok);
@@ -126,32 +137,39 @@ Obj *parse(Token *tok);
 //
 // type.c
 //
+
 typedef enum {
-    TY_CHAR,
-    TY_INT,
-    TY_PTR,
-    TY_FUNC,
-    TY_ARRAY,
+  TY_CHAR,
+  TY_INT,
+  TY_PTR,
+  TY_FUNC,
+  TY_ARRAY,
 } TypeKind;
 
 struct Type {
-    TypeKind kind;
-    int size;  // sizeof() value
-    // Pointer-to or array-of type. We intentionally use the same member 
-    // to represent pointer/array duality in c.
-    // In many contexts in which a pointer is expected, we examine this 
-    // member instead of "kind" member to determin whether a type is a 
-    // pointer or not. That means in many contexts "array of T" is
-    // naturally handled as if it were "pointer to T", as required by
-    // the C spec.
-    Type *base;  
-    Token *name; // Declaration
-    // Array
-    int array_len;
-    // Function type
-    Type *return_ty;
-    Type *params;
-    Type *next;
+  TypeKind kind;
+  int size;      // sizeof() value
+
+  // Pointer-to or array-of type. We intentionally use the same member
+  // to represent pointer/array duality in C.
+  //
+  // In many contexts in which a pointer is expected, we examine this
+  // member instead of "kind" member to determine whether a type is a
+  // pointer or not. That means in many contexts "array of T" is
+  // naturally handled as if it were "pointer to T", as required by
+  // the C spec.
+  Type *base;
+
+  // Declaration
+  Token *name;
+
+  // Array
+  int array_len;
+
+  // Function type
+  Type *return_ty;
+  Type *params;
+  Type *next;
 };
 
 extern Type *ty_char;
@@ -163,6 +181,7 @@ Type *pointer_to(Type *base);
 Type *func_type(Type *return_ty);
 Type *array_of(Type *base, int size);
 void add_type(Node *node);
+
 //
 // codegen.c
 //
