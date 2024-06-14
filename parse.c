@@ -18,8 +18,25 @@
 
 #include "chibicc.h"
 
+// Scope for local or global variables
+typedef struct VarScope VarScope;
+struct VarScope {
+    VarScope *next;
+    char *name;
+    Obj *var;
+};
+
+// Represents a block scope.
+typedef struct  Scope Scope;
+struct Scope {
+    Scope *next;
+    VarScope *vars;
+};
+
 static Obj *locals;
 static Obj *globals;
+
+static Scope *scope = &(Scope){};
 
 static Type *declspec(Token **rest, Token *tok);
 static Type *declarator(Token **rest, Token *tok, Type *ty);
@@ -36,16 +53,33 @@ static Node *postfix(Token **rest, Token *tok);
 static Node *unary(Token **rest, Token *tok);
 static Node *primary(Token **rest, Token *tok);
 
+static void enter_scope(void){
+    Scope *sc = calloc(1, sizeof(Scope));
+    sc->next = scope;
+    scope = sc;
+}
+
+static void leave_scope(void){
+    scope = scope->next;
+}
+
 static Obj *find_var(Token *tok) {
-    for (Obj *var = locals; var; var = var->next) {
-        if (strlen(var->name) == tok->len && !strncmp(tok->loc, var->name, tok->len))
-            return var;
-    }
-    for (Obj *var = globals; var; var = var->next) {
-        if (strlen(var->name) == tok->len && !strncmp(tok->loc, var->name, tok->len))
-            return var;
+    for(Scope *sc = scope; sc; sc = sc->next){
+        for(VarScope *vs = sc->vars; vs; vs = vs->next){
+            if(equal(tok, vs->name))
+                return vs->var;
+        }
     }
     return NULL;
+}
+
+static VarScope *push_scope(char *name, Obj *var){
+    VarScope *vs = calloc(1, sizeof(VarScope));
+    vs->name = name;
+    vs->var = var;
+    vs->next = scope->vars;
+    scope->vars = vs;
+    return vs;
 }
 
 static Node *new_node(NodeKind kind, Token *tok) {
@@ -64,6 +98,7 @@ static Obj *new_var(char *name, Type *ty) {
     Obj *var = calloc(1, sizeof(Obj));
     var->name = name;
     var->ty = ty;
+    push_scope(name, var);
     return var;
 }
 static Obj *new_lvar(char *name, Type *ty) {
@@ -273,6 +308,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
     Node *node = new_node(ND_BLOCK, tok);
     Node head = {};
     Node *cur = &head;
+    enter_scope();
     while (!equal(tok, "}")) {
         if (is_typename(tok))
             cur = cur->next = declaration(&tok, tok);
@@ -280,6 +316,7 @@ static Node *compound_stmt(Token **rest, Token *tok) {
             cur = cur->next = stmt(&tok, tok);
         add_type(cur);
     }
+    leave_scope();
     node->body = head.next;
     *rest = tok->next;
     return node;
@@ -589,11 +626,13 @@ static Token *function(Token *tok, Type *basety) {
     Obj *fn = new_gvar(get_ident(ty->name), ty);
     fn->is_function = true;
     locals = NULL;
+    enter_scope();
     create_param_lvars(ty->params);
     fn->params = locals;
     tok = skip(tok, "{");
     fn->body = compound_stmt(&tok, tok);
     fn->locals = locals;
+    leave_scope();
     return tok;
 }
 
