@@ -48,6 +48,7 @@ void error_at(char *loc, char *fmt, ...) {
   for (char *p = current_input; p < loc; p++)
     if (*p == '\n')
       line_no++;
+
   va_list ap;
   va_start(ap, fmt);
   verror_at(line_no, loc, fmt, ap);
@@ -123,6 +124,7 @@ static int read_punct(char *p) {
 static bool is_keyword(Token *tok) {
   static char *kw[] = {
     "return", "if", "else", "for", "while", "int", "sizeof", "char",
+    "struct",
   };
 
   for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++)
@@ -220,18 +222,19 @@ static void convert_keywords(Token *tok) {
       t->kind = TK_KEYWORD;
 }
 
-// Initialize line info for all tokens
-static void add_line_numbers(Token *tok){
-    char *p = current_input;
-    int n = 1;
-    do {
-        if(p == tok->loc){
-            tok->line_no = n;
-            tok = tok->next;
-        }
-        if(*p == '\n')
-            n++;
-    }while(*p++);
+// Initialize line info for all tokens.
+static void add_line_numbers(Token *tok) {
+  char *p = current_input;
+  int n = 1;
+
+  do {
+    if (p == tok->loc) {
+      tok->line_no = n;
+      tok = tok->next;
+    }
+    if (*p == '\n')
+      n++;
+  } while (*p++);
 }
 
 // Tokenize a given string and returns new tokens.
